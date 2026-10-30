@@ -13,3 +13,6 @@ TestResults/
 
 # OS
 .DS_Store
+appsettings.Development.json
+appsettings.Production.json
+docker-compose.override.yml

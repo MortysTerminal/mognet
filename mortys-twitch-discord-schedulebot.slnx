@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="mortys-twitch-discord-schedulebot.csproj" />
+  <Folder Name="/tests/">
+    <Project Path="tests/mortys-twitch-discord-schedulebot.Tests/mortys-twitch-discord-schedulebot.Tests.csproj" />
+  </Folder>
+</Solution>
