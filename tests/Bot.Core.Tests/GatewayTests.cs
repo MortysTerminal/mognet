@@ -66,6 +66,29 @@ namespace Mognet.Bot.Core.Tests
         }
 
         [Fact]
+        public void A_rejected_token_is_fatal()
+        {
+            var unauthorized = new HttpException(System.Net.HttpStatusCode.Unauthorized, null!);
+
+            Assert.Equal(GatewayDisconnectAction.Fatal, GatewayDisconnectPolicy.Classify(unauthorized));
+            Assert.Equal(GatewayDisconnectAction.Fatal, GatewayDisconnectPolicy.Classify(new InvalidOperationException("outer", unauthorized)));
+            Assert.Equal(GatewayDisconnectAction.Fatal, GatewayDisconnectPolicy.Classify(new AggregateException(unauthorized)));
+        }
+
+        [Theory]
+        [InlineData(System.Net.HttpStatusCode.InternalServerError)]
+        [InlineData(System.Net.HttpStatusCode.BadGateway)]
+        [InlineData(System.Net.HttpStatusCode.ServiceUnavailable)]
+        [InlineData(System.Net.HttpStatusCode.TooManyRequests)]
+        public void Outages_and_rate_limits_reconnect(System.Net.HttpStatusCode status)
+        {
+            var error = new HttpException(status, null!);
+
+            Assert.Equal(GatewayDisconnectAction.Reconnect, GatewayDisconnectPolicy.Classify(error));
+            Assert.Equal(GatewayDisconnectAction.Reconnect, GatewayDisconnectPolicy.Classify(new InvalidOperationException("outer", error)));
+        }
+
+        [Fact]
         public void Unknown_code_reconnects()
         {
             Assert.Equal(GatewayDisconnectAction.Reconnect, GatewayDisconnectPolicy.Classify(new WebSocketClosedException(1006)));

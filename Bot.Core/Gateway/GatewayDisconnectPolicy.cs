@@ -4,6 +4,8 @@ namespace Mognet.Bot.Core.Gateway
 {
     /// <summary>
     /// Decides from a disconnect exception whether the client keeps reconnecting or the bot must stop.
+    /// A rejected token (HTTP 401, which the client reports instead of a close code when the connection is refused)
+    /// is fatal. Other HTTP errors such as 429 or 5xx are outages or rate limits and reconnect.
     /// A missing exception, a missing close code or an unknown close code means reconnect.
     /// </summary>
     public static class GatewayDisconnectPolicy
@@ -16,7 +18,24 @@ namespace Mognet.Bot.Core.Gateway
         public static GatewayDisconnectAction Classify(Exception? exception)
         {
             var code = FindCloseCode(exception);
-            return code is { } c && FatalCloseCodes.Contains(c) ? GatewayDisconnectAction.Fatal : GatewayDisconnectAction.Reconnect;
+            var fatal = (code is { } c && FatalCloseCodes.Contains(c)) || HasRejectedToken(exception);
+            return fatal ? GatewayDisconnectAction.Fatal : GatewayDisconnectAction.Reconnect;
+        }
+
+        private static bool HasRejectedToken(Exception? exception)
+        {
+            while (exception is not null)
+            {
+                if (exception is HttpException { HttpCode: System.Net.HttpStatusCode.Unauthorized })
+                    return true;
+
+                if (exception is AggregateException aggregate && aggregate.InnerExceptions.Any(HasRejectedToken))
+                    return true;
+
+                exception = exception.InnerException;
+            }
+
+            return false;
         }
 
         // The library wraps the close exception, so the whole chain is searched.
