@@ -1,0 +1,64 @@
+services:
+  schedulebot:
+    # IMAGE_TAG (stack variable) pins a version, e.g. sha-3ff5943 for a rollback; defaults to latest.
+    image: ghcr.io/mortysterminal/mortys-twitch-discord-schedulebot:${IMAGE_TAG:-latest}
+    container_name: mortys-schedulebot
+    restart: unless-stopped
+
+    # ── Hardening ─────────────────────────────────────────────────────────────
+    # The bot needs no writable files, no extra Linux capabilities and no ports.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+    environment:
+      # ── Secrets (set in Portainer stack environment variables) ──
+      - Discord__BotToken=${DISCORD_BOT_TOKEN}
+      - Discord__GuildId=${DISCORD_GUILD_ID}
+      - Twitch__ClientId=${TWITCH_CLIENT_ID}
+      - Twitch__ClientSecret=${TWITCH_CLIENT_SECRET}
+
+      # ── Twitch channels ──────────────────────────────────────────────────────
+      # Set these directly as Portainer stack environment variables using the
+      # exact names below. Only set the slots you need — unset slots are simply
+      # ignored. Indices must be contiguous starting from 0.
+      #
+      # Example Portainer stack variables:
+      #   Twitch__Channels__0__Username    = mortys_welt
+      #   Twitch__Channels__0__DisplayName = MORTYS WELT
+      #   Twitch__Channels__1__Username    = dentugaming
+      #   Twitch__Channels__1__DisplayName = DentuGaming
+      #
+      # Slots 0–4 are available without editing this file.
+      # For slot 5+, add more Twitch__Channels__N__Username / __DisplayName lines below.
+      - Twitch__Channels__0__Username
+      - Twitch__Channels__0__DisplayName
+      - Twitch__Channels__1__Username
+      - Twitch__Channels__1__DisplayName
+      - Twitch__Channels__2__Username
+      - Twitch__Channels__2__DisplayName
+      - Twitch__Channels__3__Username
+      - Twitch__Channels__3__DisplayName
+      - Twitch__Channels__4__Username
+      - Twitch__Channels__4__DisplayName
+
+      # ── Optional overrides — set in Portainer to activate, omit to use defaults ──
+      # Discord__EventLanguage  → "en" (default) or "de"
+      # Sync__IntervalMinutes   → default 30
+      # Sync__LookaheadDays     → default 14
+      # Sync__MaxEventsPerChannel → default 10 (recurring series show only their next occurrence)
+      - Discord__EventLanguage
+      - Sync__IntervalMinutes
+      - Sync__LookaheadDays
+      - Sync__MaxEventsPerChannel
+
+    # ── Logging ───────────────────────────────────────────────────────────────
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
