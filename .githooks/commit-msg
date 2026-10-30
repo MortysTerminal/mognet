@@ -1,0 +1,16 @@
+#!/bin/bash
+# commit-msg: no AI attribution in the message, and only the allowed identity may commit.
+. "$(dirname "$0")/lib.sh"
+
+if grep -v '^#' "$1" | grep -qiE "$ATTR_RE"; then
+  echo "BLOCKED: commit message contains AI attribution. Remove it and commit again." >&2
+  exit 1
+fi
+for kind in AUTHOR COMMITTER; do
+  ident=$(git var "GIT_${kind}_IDENT") || { echo "BLOCKED: git identity not set." >&2; exit 1; }
+  if [ "$(printf '%s' "$ident" | ident_email)" != "$ALLOWED_EMAIL" ]; then
+    echo "BLOCKED: $kind e-mail is not the allowed noreply address. Fix with: git config user.email $ALLOWED_EMAIL" >&2
+    exit 1
+  fi
+done
+exit 0

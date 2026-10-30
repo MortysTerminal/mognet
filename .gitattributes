@@ -1,0 +1,12 @@
+# Normalize line endings: LF in the repo, so scripts and diffs behave the same on Windows, macOS and Linux.
+* text=auto eol=lf
+
+# Windows-only scripts keep CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.ico binary
+*.zip binary

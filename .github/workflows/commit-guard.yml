@@ -1,0 +1,56 @@
+name: commit-guard
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  commit-guard:
+    runs-on: ubuntu-latest
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check author, committer and message of every commit in range
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+        run: |
+          ALLOWED='111351643+MortysTerminal@users.noreply.github.com'
+          OWNER='MortysTerminal'
+          WEBFLOW='noreply@github.com'   # committer of merges made by GitHub itself
+          ATTR='co-authored-by|generated with|claude code|noreply@anthropic\.com|claude\.ai/code'
+          if [ "$EVENT" = "pull_request" ] && [ "$PR_AUTHOR" != "$OWNER" ]; then
+            echo "Pull request by $PR_AUTHOR: the owner's identity rules do not apply."
+            exit 0
+          fi
+          if [ "$EVENT" = "pull_request" ]; then
+            range="$PR_BASE..$PR_HEAD"
+          elif [ "$PUSH_BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            range="$PUSH_AFTER"
+          else
+            range="$PUSH_BEFORE..$PUSH_AFTER"
+          fi
+          fail=0
+          for c in $(git rev-list "$range"); do
+            ae=$(git log -1 --format=%ae "$c"); ce=$(git log -1 --format=%ce "$c")
+            # Merges made by GitHub may carry a contributor's author and trailers; their PRs were checked above.
+            [ "$ce" = "$WEBFLOW" ] && continue
+            [ "$ae" = "$ALLOWED" ] || { echo "::error::commit $c: author e-mail not allowed"; fail=1; }
+            [ "$ce" = "$ALLOWED" ] || { echo "::error::commit $c: committer e-mail not allowed"; fail=1; }
+            if git log -1 --format=%B "$c" | grep -qiE "$ATTR"; then
+              echo "::error::commit $c: message contains an attribution trailer"; fail=1
+            fi
+          done
+          exit $fail
