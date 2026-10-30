@@ -1,0 +1,10 @@
+<Solution>
+  <Project Path="Bot.Core/Bot.Core.csproj" />
+  <Project Path="Bot.Host/Bot.Host.csproj" />
+  <Folder Name="/Modules/">
+    <Project Path="Modules/TwitchSchedule/Modules.TwitchSchedule.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Modules.TwitchSchedule.Tests/Modules.TwitchSchedule.Tests.csproj" />
+  </Folder>
+</Solution>

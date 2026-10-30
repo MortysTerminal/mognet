@@ -1,7 +1,7 @@
 using System.Globalization;
 using Microsoft.Extensions.Configuration;
 
-namespace mortys_twitch_discord_schedulebot.Sync
+namespace Mognet.Modules.TwitchSchedule.Sync
 {
     /// <summary>
     /// Numeric sync settings, validated once at start-up. An invalid value stops the bot before it can

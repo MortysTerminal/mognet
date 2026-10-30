@@ -1,8 +1,8 @@
-using mortys_twitch_discord_schedulebot.Models;
-using mortys_twitch_discord_schedulebot.Sync;
-using static mortys_twitch_discord_schedulebot.Tests.TestData;
+using Mognet.Modules.TwitchSchedule.Models;
+using Mognet.Modules.TwitchSchedule.Sync;
+using static Mognet.Modules.TwitchSchedule.Tests.TestData;
 
-namespace mortys_twitch_discord_schedulebot.Tests
+namespace Mognet.Modules.TwitchSchedule.Tests
 {
     public class EventPlannerTests
     {

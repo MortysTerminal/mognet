@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using mortys_twitch_discord_schedulebot.Services;
-using mortys_twitch_discord_schedulebot.Sync;
+using Mognet.Modules.TwitchSchedule.Services;
+using Mognet.Modules.TwitchSchedule.Sync;
 using Serilog;
 
 // Bootstrap logger active before the host starts (catches startup failures)

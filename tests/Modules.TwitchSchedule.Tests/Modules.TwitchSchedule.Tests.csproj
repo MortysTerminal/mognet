@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <RootNamespace>mortys_twitch_discord_schedulebot.Tests</RootNamespace>
+    <RootNamespace>Mognet.Modules.TwitchSchedule.Tests</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <OutputType>Exe</OutputType>
@@ -18,7 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\mortys-twitch-discord-schedulebot.csproj" />
+    <ProjectReference Include="..\..\Modules\TwitchSchedule\Modules.TwitchSchedule.csproj" />
   </ItemGroup>
 
 </Project>

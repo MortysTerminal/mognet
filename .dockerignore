@@ -9,16 +9,16 @@ docker-compose.yml
 
 # Visual Studio
 .vs/
-bin/
-obj/
+**/bin/
+**/obj/
 
 # Prevent operator-specific overrides from leaking into the image.
 # appsettings.json (safe defaults) IS included intentionally.
-appsettings.Production.json
-appsettings.Development.json
-.env
-.env.*
-*.env
+**/appsettings.Production.json
+**/appsettings.Development.json
+**/.env
+**/.env.*
+**/*.env
 
 # Documentation
 README.md
