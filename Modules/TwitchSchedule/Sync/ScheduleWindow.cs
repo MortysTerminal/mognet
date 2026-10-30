@@ -1,4 +1,4 @@
-namespace mortys_twitch_discord_schedulebot.Sync
+namespace Mognet.Modules.TwitchSchedule.Sync
 {
     /// <summary>
     /// The time range of schedule entries that are mirrored to Discord: strictly after now, up to and

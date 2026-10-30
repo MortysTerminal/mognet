@@ -1,4 +1,4 @@
-namespace mortys_twitch_discord_schedulebot.Models
+namespace Mognet.Modules.TwitchSchedule.Models
 {
     /// <summary>
     /// One entry of a Twitch streaming schedule that is mirrored to a Discord event.

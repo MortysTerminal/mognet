@@ -1,6 +1,6 @@
-using mortys_twitch_discord_schedulebot.Sync;
+using Mognet.Modules.TwitchSchedule.Sync;
 
-namespace mortys_twitch_discord_schedulebot.Tests
+namespace Mognet.Modules.TwitchSchedule.Tests
 {
     public class SegmentSelectorTests
     {

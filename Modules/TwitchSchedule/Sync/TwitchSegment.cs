@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json;
 
-namespace mortys_twitch_discord_schedulebot.Sync
+namespace Mognet.Modules.TwitchSchedule.Sync
 {
     /// <summary>
     /// One segment of a Twitch streaming schedule, independent of the API client's types.

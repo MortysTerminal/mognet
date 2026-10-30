@@ -1,6 +1,6 @@
-using mortys_twitch_discord_schedulebot.Models;
+using Mognet.Modules.TwitchSchedule.Models;
 
-namespace mortys_twitch_discord_schedulebot.Sync
+namespace Mognet.Modules.TwitchSchedule.Sync
 {
     /// <summary>
     /// Builds the Discord event content (name, description, end time) for a Twitch schedule entry.

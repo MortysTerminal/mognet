@@ -1,12 +1,12 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using mortys_twitch_discord_schedulebot.Models;
-using mortys_twitch_discord_schedulebot.Sync;
+using Mognet.Modules.TwitchSchedule.Models;
+using Mognet.Modules.TwitchSchedule.Sync;
 using TwitchLib.Api;
 using TwitchLib.Api.Core.Exceptions;
 using TwitchLib.Api.Helix.Models.Schedule;
 
-namespace mortys_twitch_discord_schedulebot.Services
+namespace Mognet.Modules.TwitchSchedule.Services
 {
     public class TwitchService
     {

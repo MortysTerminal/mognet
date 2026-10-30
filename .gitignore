@@ -10,9 +10,9 @@ TestResults/
 .env.*
 *.db
 *.db-*
-
-# OS
-.DS_Store
 appsettings.Development.json
 appsettings.Production.json
 docker-compose.override.yml
+
+# OS
+.DS_Store

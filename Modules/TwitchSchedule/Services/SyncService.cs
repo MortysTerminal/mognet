@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using mortys_twitch_discord_schedulebot.Sync;
+using Mognet.Modules.TwitchSchedule.Sync;
 
-namespace mortys_twitch_discord_schedulebot.Services
+namespace Mognet.Modules.TwitchSchedule.Services
 {
     public class SyncService : BackgroundService
     {

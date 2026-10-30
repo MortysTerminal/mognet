@@ -1,6 +1,6 @@
-using mortys_twitch_discord_schedulebot.Models;
+using Mognet.Modules.TwitchSchedule.Models;
 
-namespace mortys_twitch_discord_schedulebot.Sync
+namespace Mognet.Modules.TwitchSchedule.Sync
 {
     /// <summary>
     /// Result of fetching one channel's schedule in a sync cycle. A failed fetch carries no entries and

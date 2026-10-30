@@ -1,4 +1,4 @@
-namespace mortys_twitch_discord_schedulebot.Sync
+namespace Mognet.Modules.TwitchSchedule.Sync
 {
     /// <summary>
     /// Selects the Twitch segments that are mirrored to Discord. Pure: no I/O, no clock.

@@ -1,6 +1,6 @@
-using mortys_twitch_discord_schedulebot.Models;
+using Mognet.Modules.TwitchSchedule.Models;
 
-namespace mortys_twitch_discord_schedulebot.Sync
+namespace Mognet.Modules.TwitchSchedule.Sync
 {
     /// <summary>
     /// Snapshot of a Discord scheduled event, as far as the planner needs it.

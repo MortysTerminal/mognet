@@ -1,4 +1,4 @@
-namespace mortys_twitch_discord_schedulebot.Models
+namespace Mognet.Modules.TwitchSchedule.Models
 {
     /// <summary>
     /// A configured Twitch channel, bound from <c>Twitch:Channels</c>.

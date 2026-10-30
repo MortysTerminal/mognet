@@ -1,6 +1,6 @@
-using mortys_twitch_discord_schedulebot.Models;
+using Mognet.Modules.TwitchSchedule.Models;
 
-namespace mortys_twitch_discord_schedulebot.Sync
+namespace Mognet.Modules.TwitchSchedule.Sync
 {
     /// <summary>
     /// Decides which Discord events to create, update or delete so that Discord mirrors the Twitch schedule.

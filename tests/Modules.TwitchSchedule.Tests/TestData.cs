@@ -1,7 +1,7 @@
-using mortys_twitch_discord_schedulebot.Models;
-using mortys_twitch_discord_schedulebot.Sync;
+using Mognet.Modules.TwitchSchedule.Models;
+using Mognet.Modules.TwitchSchedule.Sync;
 
-namespace mortys_twitch_discord_schedulebot.Tests
+namespace Mognet.Modules.TwitchSchedule.Tests
 {
     internal static class TestData
     {
