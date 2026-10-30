@@ -15,7 +15,7 @@ namespace Mognet.Bot.Core.Storage
         {
             ArgumentNullException.ThrowIfNull(migrations);
 
-            if (string.IsNullOrWhiteSpace(scope) || !ScopePattern().IsMatch(scope))
+            if (!IsValidScope(scope))
             {
                 throw new ArgumentException(
                     $"Migration scope '{scope}' is invalid: use lower-case letters, digits and underscores, starting with a letter.",
@@ -51,6 +51,9 @@ namespace Mognet.Bot.Core.Storage
             Scope = scope;
             Migrations = ordered;
         }
+
+        /// <summary>Whether <paramref name="scope"/> fits the naming rule for scopes (and module ids).</summary>
+        public static bool IsValidScope(string? scope) => !string.IsNullOrWhiteSpace(scope) && ScopePattern().IsMatch(scope);
 
         [GeneratedRegex("^[a-z][a-z0-9_]*$")]
         private static partial Regex ScopePattern();
