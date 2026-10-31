@@ -2,9 +2,14 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Mognet.Bot.Core;
+using Mognet.Bot.Core.Health;
 using Mognet.Bot.Core.Modules;
 using Mognet.Modules.TwitchSchedule;
 using Serilog;
+
+// Container health check: runs before the host and the logger exist, and exits with the check's result.
+if (args.Contains("--healthcheck"))
+    Environment.Exit(HealthCheck.Run(HealthFile.DefaultPath, DateTimeOffset.UtcNow, HealthCheck.DefaultMaxAge));
 
 // Bootstrap logger active before the host starts (catches startup failures)
 Log.Logger = new LoggerConfiguration()
@@ -43,6 +48,7 @@ try
         {
             services.AddSingleton(TimeProvider.System);
             services.AddMognetCore(context.Configuration);
+            services.AddMognetHealthFile();
             services.AddSingleton<IBotModule, TwitchScheduleModule>();
         })
 

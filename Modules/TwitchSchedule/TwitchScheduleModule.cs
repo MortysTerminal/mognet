@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Mognet.Bot.Core.Gateway;
+using Mognet.Bot.Core.Health;
 using Mognet.Bot.Core.Modules;
 using Mognet.Bot.Core.Storage;
 using Mognet.Modules.TwitchSchedule.Services;
@@ -61,7 +62,9 @@ namespace Mognet.Modules.TwitchSchedule
                     discord,
                     configStore,
                     config.Options,
-                    _services.GetRequiredService<ILogger<SyncService>>());
+                    _services.GetRequiredService<ILogger<SyncService>>(),
+                    _services.GetService<HealthRegistry>(),
+                    _services.GetService<TimeProvider>());
                 await sync.StartAsync(cancellationToken);
             }
             catch
@@ -72,6 +75,11 @@ namespace Mognet.Modules.TwitchSchedule
                 throw;
             }
 
+            Attach(sync, discord);
+        }
+
+        internal void Attach(SyncService sync, IAsyncDisposable discord)
+        {
             var run = new Run(sync, discord);
             _run = run;
             if (sync.ExecuteTask is { } executeTask)
@@ -92,6 +100,7 @@ namespace Mognet.Modules.TwitchSchedule
             }
             finally
             {
+                _services.GetService<HealthRegistry>()?.Clear(ModuleId);
                 run.Sync.Dispose();
                 await run.Discord.DisposeAsync();
                 run.Stopped.Dispose();
@@ -116,7 +125,7 @@ namespace Mognet.Modules.TwitchSchedule
             }
         }
 
-        private sealed record Run(SyncService Sync, DiscordService Discord)
+        private sealed record Run(SyncService Sync, IAsyncDisposable Discord)
         {
             public CancellationTokenSource Stopped { get; } = new();
         }

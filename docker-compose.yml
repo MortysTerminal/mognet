@@ -1,12 +1,13 @@
 services:
-  schedulebot:
+  mognet:
     # IMAGE_TAG (stack variable) pins a version, e.g. sha-3ff5943 for a rollback; defaults to latest.
-    image: ghcr.io/mortysterminal/mortys-twitch-discord-schedulebot:${IMAGE_TAG:-latest}
-    container_name: mortys-schedulebot
+    image: ghcr.io/mortysterminal/mognet:${IMAGE_TAG:-latest}
+    container_name: mognet
     restart: unless-stopped
 
     # ── Hardening ─────────────────────────────────────────────────────────────
-    # The bot needs no writable files, no extra Linux capabilities and no ports.
+    # The root filesystem is read-only. The only writable places are /tmp (memory) and the /data volume.
+    # No extra Linux capabilities and no ports.
     read_only: true
     tmpfs:
       - /tmp
@@ -15,25 +16,34 @@ services:
     security_opt:
       - no-new-privileges:true
 
+    volumes:
+      # Holds the SQLite database. The image creates /data owned by the non-root user.
+      - mognet-data:/data
+
     environment:
-      # ── Secrets (set in Portainer stack environment variables) ──
+      - Database__Path=/data/mognet.db
+
+      # ── Secrets (set as stack environment variables) ──
       - Discord__BotToken=${DISCORD_BOT_TOKEN}
       - Discord__GuildId=${DISCORD_GUILD_ID}
       - Twitch__ClientId=${TWITCH_CLIENT_ID}
       - Twitch__ClientSecret=${TWITCH_CLIENT_SECRET}
 
-      # ── Twitch channels ──────────────────────────────────────────────────────
-      # Set these directly as Portainer stack environment variables using the
-      # exact names below. Only set the slots you need — unset slots are simply
-      # ignored. Indices must be contiguous starting from 0.
+      # ── Twitch channels: imported once ───────────────────────────────────────
+      # The channels below and the Sync__* and Discord__EventLanguage values are read once, at the first start
+      # of the schedule module, and stored in the database. After that the database wins: changing these
+      # variables has no effect.
       #
-      # Example Portainer stack variables:
-      #   Twitch__Channels__0__Username    = mortys_welt
-      #   Twitch__Channels__0__DisplayName = MORTYS WELT
-      #   Twitch__Channels__1__Username    = dentugaming
-      #   Twitch__Channels__1__DisplayName = DentuGaming
+      # Set the variables with the exact names below. Only set the slots you need; unset slots are ignored.
+      # Indices must be contiguous starting from 0.
       #
-      # Slots 0–4 are available without editing this file.
+      # Example stack variables:
+      #   Twitch__Channels__0__Username    = first_channel
+      #   Twitch__Channels__0__DisplayName = First Channel
+      #   Twitch__Channels__1__Username    = second_channel
+      #   Twitch__Channels__1__DisplayName = Second Channel
+      #
+      # Slots 0-4 are available without editing this file.
       # For slot 5+, add more Twitch__Channels__N__Username / __DisplayName lines below.
       - Twitch__Channels__0__Username
       - Twitch__Channels__0__DisplayName
@@ -46,11 +56,11 @@ services:
       - Twitch__Channels__4__Username
       - Twitch__Channels__4__DisplayName
 
-      # ── Optional overrides — set in Portainer to activate, omit to use defaults ──
-      # Discord__EventLanguage  → "en" (default) or "de"
-      # Sync__IntervalMinutes   → default 30
-      # Sync__LookaheadDays     → default 14
-      # Sync__MaxEventsPerChannel → default 10 (recurring series show only their next occurrence)
+      # ── Optional values, also imported once at the first start ───────────────
+      # Discord__EventLanguage    -> "en" (default) or "de"
+      # Sync__IntervalMinutes     -> default 30
+      # Sync__LookaheadDays       -> default 14
+      # Sync__MaxEventsPerChannel -> default 10 (recurring series show only their next occurrence)
       - Discord__EventLanguage
       - Sync__IntervalMinutes
       - Sync__LookaheadDays
@@ -62,3 +72,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+volumes:
+  mognet-data:
