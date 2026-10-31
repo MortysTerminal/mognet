@@ -1,10 +1,12 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Mognet.Bot.Core.Gateway;
+using Mognet.Bot.Core.Health;
 using Mognet.Bot.Core.Modules;
 using Mognet.Bot.Core.Storage;
 using Mognet.Modules.TwitchSchedule.Services;
 using Mognet.Modules.TwitchSchedule.Storage;
+using Mognet.Modules.TwitchSchedule.Sync;
 
 namespace Mognet.Modules.TwitchSchedule
 {
@@ -56,12 +58,7 @@ namespace Mognet.Modules.TwitchSchedule
             try
             {
                 discord = ActivatorUtilities.CreateInstance<DiscordService>(_services);
-                sync = new SyncService(
-                    twitch,
-                    discord,
-                    configStore,
-                    config.Options,
-                    _services.GetRequiredService<ILogger<SyncService>>());
+                sync = CreateSync(twitch, discord, configStore, config.Options);
                 await sync.StartAsync(cancellationToken);
             }
             catch
@@ -72,6 +69,22 @@ namespace Mognet.Modules.TwitchSchedule
                 throw;
             }
 
+            Attach(sync, discord);
+        }
+
+        // The health registry is required, so a missing registration fails loudly instead of disabling the signal.
+        internal SyncService CreateSync(ITwitchSchedules twitch, IDiscordSync discord, IScheduleConfigSource configSource, SyncOptions options) =>
+            new(
+                twitch,
+                discord,
+                configSource,
+                options,
+                _services.GetRequiredService<ILogger<SyncService>>(),
+                _services.GetRequiredService<HealthRegistry>(),
+                _services.GetRequiredService<TimeProvider>());
+
+        internal void Attach(SyncService sync, IAsyncDisposable discord)
+        {
             var run = new Run(sync, discord);
             _run = run;
             if (sync.ExecuteTask is { } executeTask)
@@ -92,6 +105,7 @@ namespace Mognet.Modules.TwitchSchedule
             }
             finally
             {
+                _services.GetService<HealthRegistry>()?.Clear(ModuleId);
                 run.Sync.Dispose();
                 await run.Discord.DisposeAsync();
                 run.Stopped.Dispose();
@@ -116,7 +130,7 @@ namespace Mognet.Modules.TwitchSchedule
             }
         }
 
-        private sealed record Run(SyncService Sync, DiscordService Discord)
+        private sealed record Run(SyncService Sync, IAsyncDisposable Discord)
         {
             public CancellationTokenSource Stopped { get; } = new();
         }

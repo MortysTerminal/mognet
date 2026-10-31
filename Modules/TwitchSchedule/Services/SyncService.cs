@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Mognet.Bot.Core.Health;
 using Mognet.Modules.TwitchSchedule.Storage;
 using Mognet.Modules.TwitchSchedule.Sync;
 
@@ -11,6 +12,8 @@ namespace Mognet.Modules.TwitchSchedule.Services
         private readonly IDiscordSync _discordService;
         private readonly IScheduleConfigSource _configSource;
         private readonly ILogger<SyncService> _logger;
+        private readonly HealthRegistry? _health;
+        private readonly TimeProvider _time;
         private int _intervalMinutes;
 
         internal SyncService(
@@ -18,17 +21,29 @@ namespace Mognet.Modules.TwitchSchedule.Services
             IDiscordSync discordService,
             IScheduleConfigSource configSource,
             SyncOptions options,
-            ILogger<SyncService> logger)
+            ILogger<SyncService> logger,
+            HealthRegistry? health = null,
+            TimeProvider? time = null)
         {
             _twitchService = twitchService;
             _discordService = discordService;
             _configSource = configSource;
             _logger = logger;
             _intervalMinutes = options.IntervalMinutes;
+            _health = health;
+            _time = time ?? TimeProvider.System;
         }
+
+        // A cycle is late when it has not finished one interval plus this grace after the last report.
+        private static readonly TimeSpan HealthGrace = TimeSpan.FromMinutes(15);
+
+        private void ReportHealth() =>
+            _health?.Report(TwitchScheduleModule.ModuleId, _time.GetUtcNow() + TimeSpan.FromMinutes(_intervalMinutes) + HealthGrace);
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            ReportHealth();
+
             _logger.LogInformation(
                 "SyncService started — syncing every {Interval} minute(s).",
                 _intervalMinutes
@@ -107,6 +122,8 @@ namespace Mognet.Modules.TwitchSchedule.Services
             {
                 _logger.LogError(ex, "Error during sync.");
             }
+
+            ReportHealth();
 
             _logger.LogInformation("═══════════════════════════════════════");
         }
