@@ -1,8 +1,9 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Mognet.Modules.TwitchSchedule.Services;
-using Mognet.Modules.TwitchSchedule.Sync;
+using Mognet.Bot.Core;
+using Mognet.Bot.Core.Modules;
+using Mognet.Modules.TwitchSchedule;
 using Serilog;
 
 // Bootstrap logger active before the host starts (catches startup failures)
@@ -41,11 +42,8 @@ try
         .ConfigureServices((context, services) =>
         {
             services.AddSingleton(TimeProvider.System);
-            // Validated when the services are created; an invalid value stops the host with exit code 1.
-            services.AddSingleton(_ => SyncOptions.FromConfiguration(context.Configuration));
-            services.AddSingleton<TwitchService>();
-            services.AddSingleton<DiscordService>();
-            services.AddHostedService<SyncService>();
+            services.AddMognetCore(context.Configuration);
+            services.AddSingleton<IBotModule, TwitchScheduleModule>();
         })
 
         .Build();
