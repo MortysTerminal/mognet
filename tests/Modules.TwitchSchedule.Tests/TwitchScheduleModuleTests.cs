@@ -35,7 +35,8 @@ namespace Mognet.Modules.TwitchSchedule.Tests
             var module = Module();
 
             Assert.Equal("twitch_schedule", module.Id);
-            Assert.Null(module.Migrations);
+            Assert.NotNull(module.Migrations);
+            Assert.Equal("twitch_schedule", module.Migrations.Scope);
         }
 
         [Fact]

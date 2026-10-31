@@ -4,13 +4,14 @@ using Mognet.Bot.Core.Gateway;
 using Mognet.Bot.Core.Modules;
 using Mognet.Bot.Core.Storage;
 using Mognet.Modules.TwitchSchedule.Services;
-using Mognet.Modules.TwitchSchedule.Sync;
+using Mognet.Modules.TwitchSchedule.Storage;
 
 namespace Mognet.Modules.TwitchSchedule
 {
     /// <summary>
     /// Mirrors Twitch schedules as Discord events. The services are built on every start, so the configuration is
-    /// read only when the module is switched on, and a stopped module can be started again.
+    /// read only when the module is switched on, and a stopped module can be started again. Channels and sync
+    /// settings come from the database; the environment is imported once at the first start.
     /// </summary>
     public sealed class TwitchScheduleModule : IBotModule
     {
@@ -30,22 +31,37 @@ namespace Mognet.Modules.TwitchSchedule
 
         public string Id => ModuleId;
 
-        public MigrationSet? Migrations => null;
+        public MigrationSet? Migrations => ScheduleMigrations.Set;
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
             if (_run is not null)
                 throw new InvalidOperationException("The module is already running.");
 
-            var configuration = _services.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
-            var options = SyncOptions.FromConfiguration(configuration);
-            var twitch = ActivatorUtilities.CreateInstance<TwitchService>(_services, options);
+            await ActivatorUtilities.CreateInstance<ScheduleImporter>(_services).ImportAsync(cancellationToken);
+
+            var configStore = ActivatorUtilities.CreateInstance<ScheduleConfigStore>(_services);
+            var config = await configStore.LoadAsync(cancellationToken);
+            if (config.Channels.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    "No Twitch channels configured. Set Twitch__Channels__0__Username and Twitch__Channels__0__DisplayName " +
+                    "before the first start of the module; later changes to them have no effect."
+                );
+            }
+
+            var twitch = ActivatorUtilities.CreateInstance<TwitchService>(_services);
             DiscordService? discord = null;
             SyncService? sync = null;
             try
             {
                 discord = ActivatorUtilities.CreateInstance<DiscordService>(_services);
-                sync = ActivatorUtilities.CreateInstance<SyncService>(_services, twitch, discord, options);
+                sync = new SyncService(
+                    twitch,
+                    discord,
+                    configStore,
+                    config.Options,
+                    _services.GetRequiredService<ILogger<SyncService>>());
                 await sync.StartAsync(cancellationToken);
             }
             catch

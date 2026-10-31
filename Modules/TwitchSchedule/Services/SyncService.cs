@@ -1,24 +1,28 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Mognet.Modules.TwitchSchedule.Storage;
 using Mognet.Modules.TwitchSchedule.Sync;
 
 namespace Mognet.Modules.TwitchSchedule.Services
 {
     public class SyncService : BackgroundService
     {
-        private readonly TwitchService _twitchService;
-        private readonly DiscordService _discordService;
+        private readonly ITwitchSchedules _twitchService;
+        private readonly IDiscordSync _discordService;
+        private readonly IScheduleConfigSource _configSource;
         private readonly ILogger<SyncService> _logger;
-        private readonly int _intervalMinutes;
+        private int _intervalMinutes;
 
-        public SyncService(
-            TwitchService twitchService,
-            DiscordService discordService,
+        internal SyncService(
+            ITwitchSchedules twitchService,
+            IDiscordSync discordService,
+            IScheduleConfigSource configSource,
             SyncOptions options,
             ILogger<SyncService> logger)
         {
             _twitchService = twitchService;
             _discordService = discordService;
+            _configSource = configSource;
             _logger = logger;
             _intervalMinutes = options.IntervalMinutes;
         }
@@ -74,20 +78,30 @@ namespace Mognet.Modules.TwitchSchedule.Services
             _logger.LogInformation("SyncService is stopping.");
         }
 
-        private async Task RunSyncAsync()
+        internal int IntervalMinutes => _intervalMinutes;
+
+        // Loads the config first, so a changed setting applies from this cycle on. When the config cannot be
+        // loaded or holds no channel, the cycle is skipped before any Twitch or Discord call.
+        internal async Task RunSyncAsync()
         {
             _logger.LogInformation("═══════════════════════════════════════");
             _logger.LogInformation("Starting sync...");
 
             try
             {
-                var schedules = await _twitchService.GetAllSchedulesAsync();
+                var config = await LoadConfigAsync();
+                if (config is not null)
+                {
+                    _intervalMinutes = config.Options.IntervalMinutes;
 
-                _logger.LogInformation("{Count} Twitch entries found.", schedules.Sum(s => s.Entries.Count));
+                    var schedules = await _twitchService.GetAllSchedulesAsync(config);
 
-                await _discordService.SyncEventsAsync(schedules);
+                    _logger.LogInformation("{Count} Twitch entries found.", schedules.Sum(s => s.Entries.Count));
 
-                _logger.LogInformation("Sync completed successfully.");
+                    await _discordService.SyncEventsAsync(schedules, config);
+
+                    _logger.LogInformation("Sync completed successfully.");
+                }
             }
             catch (Exception ex)
             {
@@ -95,6 +109,28 @@ namespace Mognet.Modules.TwitchSchedule.Services
             }
 
             _logger.LogInformation("═══════════════════════════════════════");
+        }
+
+        private async Task<ScheduleConfig?> LoadConfigAsync()
+        {
+            ScheduleConfig config;
+            try
+            {
+                config = await _configSource.LoadAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "The schedule settings could not be read — skipping this sync cycle.");
+                return null;
+            }
+
+            if (config.Channels.Count == 0)
+            {
+                _logger.LogError("No Twitch channels are configured — skipping this sync cycle.");
+                return null;
+            }
+
+            return config;
         }
     }
 }

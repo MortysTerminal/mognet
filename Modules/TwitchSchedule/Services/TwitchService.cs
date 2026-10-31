@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Mognet.Modules.TwitchSchedule.Models;
+using Mognet.Modules.TwitchSchedule.Storage;
 using Mognet.Modules.TwitchSchedule.Sync;
 using TwitchLib.Api;
 using TwitchLib.Api.Core.Exceptions;
@@ -8,16 +9,13 @@ using TwitchLib.Api.Helix.Models.Schedule;
 
 namespace Mognet.Modules.TwitchSchedule.Services
 {
-    public class TwitchService
+    public class TwitchService : ITwitchSchedules
     {
         private readonly TwitchAPI _twitchApi;
-        private readonly List<TwitchChannelConfig> _channels;
         private readonly ILogger<TwitchService> _logger;
-        private readonly int _lookaheadDays;
-        private readonly int _maxEventsPerChannel;
         private readonly TimeProvider _timeProvider;
 
-        public TwitchService(IConfiguration configuration, SyncOptions options, ILogger<TwitchService> logger, TimeProvider timeProvider)
+        public TwitchService(IConfiguration configuration, ILogger<TwitchService> logger, TimeProvider timeProvider)
         {
             _logger = logger;
             _timeProvider = timeProvider;
@@ -28,58 +26,26 @@ namespace Mognet.Modules.TwitchSchedule.Services
             var clientSecret = configuration["Twitch:ClientSecret"]
                 ?? throw new InvalidOperationException("Twitch:ClientSecret is missing from configuration.");
 
-            // Load channels from configuration — populated at runtime via environment variables:
-            //   Twitch__Channels__0__Username / Twitch__Channels__0__DisplayName (and so on)
-            var channels = configuration
-                .GetSection("Twitch:Channels")
-                .Get<List<TwitchChannelConfig>>();
-
-            // Filter out any slots that were declared in docker-compose.yml but left
-            // unset in Portainer (Docker passes them as empty strings in that case).
-            var validChannels = channels?
-                .Where(c => !string.IsNullOrWhiteSpace(c.Username))
-                .ToList();
-
-            if (validChannels == null || validChannels.Count == 0)
-            {
-                _logger.LogError(
-                    "No Twitch channels are configured. Set at least one channel pair via environment variables: " +
-                    "Twitch__Channels__0__Username and Twitch__Channels__0__DisplayName"
-                );
-                throw new InvalidOperationException(
-                    "No Twitch channels configured. " +
-                    "Set Twitch__Channels__0__Username and Twitch__Channels__0__DisplayName."
-                );
-            }
-
-            _channels = validChannels;
-            _lookaheadDays = options.LookaheadDays;
-            _maxEventsPerChannel = options.MaxEventsPerChannel;
-
             _twitchApi = new TwitchAPI();
             _twitchApi.Settings.ClientId = clientId;
             _twitchApi.Settings.Secret = clientSecret;
 
-            _logger.LogInformation(
-                "TwitchService initialized with {Count} channel(s): {Channels}",
-                _channels.Count,
-                string.Join(", ", _channels.Select(c => c.DisplayName))
-            );
+            _logger.LogInformation("TwitchService initialized.");
         }
 
         // Throws when authentication fails, so the caller skips the whole cycle.
         // Per-channel failures are returned as failed results instead of throwing.
-        public async Task<List<ChannelSchedule>> GetAllSchedulesAsync()
+        public async Task<List<ChannelSchedule>> GetAllSchedulesAsync(ScheduleConfig config)
         {
             var schedules = new List<ChannelSchedule>();
 
             await AuthenticateAsync();
 
-            foreach (var channel in _channels)
+            foreach (var channel in config.Channels)
             {
                 _logger.LogInformation("Fetching schedule for channel: {Channel}", channel.Username);
 
-                var schedule = await GetScheduleForChannelAsync(channel);
+                var schedule = await GetScheduleForChannelAsync(channel, config.Options.LookaheadDays, config.Options.MaxEventsPerChannel);
                 schedules.Add(schedule);
 
                 if (schedule.Succeeded)
@@ -117,7 +83,7 @@ namespace Mognet.Modules.TwitchSchedule.Services
             }
         }
 
-        private async Task<ChannelSchedule> GetScheduleForChannelAsync(TwitchChannelConfig channel)
+        private async Task<ChannelSchedule> GetScheduleForChannelAsync(TwitchChannelConfig channel, int lookaheadDays, int maxEventsPerChannel)
         {
             var entries = new List<StreamScheduleEntry>();
 
@@ -137,7 +103,7 @@ namespace Mognet.Modules.TwitchSchedule.Services
                 var userId = userResponse.Users[0].Id;
 
                 var now = _timeProvider.GetUtcNow();
-                var cutoff = now.AddDays(_lookaheadDays);
+                var cutoff = now.AddDays(lookaheadDays);
                 var segments = new List<TwitchSegment>();
                 VacationWindow? vacation = null;
                 string? cursor = null;
@@ -166,7 +132,7 @@ namespace Mognet.Modules.TwitchSchedule.Services
                         break;
 
                     // Enough events already; later pages cannot add earlier segments.
-                    if (SegmentSelector.Select(segments, vacation, now, _lookaheadDays, _maxEventsPerChannel).Count >= _maxEventsPerChannel)
+                    if (SegmentSelector.Select(segments, vacation, now, lookaheadDays, maxEventsPerChannel).Count >= maxEventsPerChannel)
                         break;
                 }
 
@@ -184,7 +150,7 @@ namespace Mognet.Modules.TwitchSchedule.Services
                     );
                 }
 
-                foreach (var segment in SegmentSelector.Select(segments, vacation, now, _lookaheadDays, _maxEventsPerChannel))
+                foreach (var segment in SegmentSelector.Select(segments, vacation, now, lookaheadDays, maxEventsPerChannel))
                 {
                     entries.Add(new StreamScheduleEntry
                     {

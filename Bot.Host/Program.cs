@@ -14,7 +14,7 @@ Log.Logger = new LoggerConfiguration()
 
 try
 {
-    Log.Information("Twitch-Discord Schedule Bot starting...");
+    Log.Information("Mognet starting...");
 
     var host = Host.CreateDefaultBuilder(args)
 
