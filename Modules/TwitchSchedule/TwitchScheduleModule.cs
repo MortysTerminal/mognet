@@ -6,6 +6,7 @@ using Mognet.Bot.Core.Modules;
 using Mognet.Bot.Core.Storage;
 using Mognet.Modules.TwitchSchedule.Services;
 using Mognet.Modules.TwitchSchedule.Storage;
+using Mognet.Modules.TwitchSchedule.Sync;
 
 namespace Mognet.Modules.TwitchSchedule
 {
@@ -57,14 +58,7 @@ namespace Mognet.Modules.TwitchSchedule
             try
             {
                 discord = ActivatorUtilities.CreateInstance<DiscordService>(_services);
-                sync = new SyncService(
-                    twitch,
-                    discord,
-                    configStore,
-                    config.Options,
-                    _services.GetRequiredService<ILogger<SyncService>>(),
-                    _services.GetService<HealthRegistry>(),
-                    _services.GetService<TimeProvider>());
+                sync = CreateSync(twitch, discord, configStore, config.Options);
                 await sync.StartAsync(cancellationToken);
             }
             catch
@@ -77,6 +71,17 @@ namespace Mognet.Modules.TwitchSchedule
 
             Attach(sync, discord);
         }
+
+        // The health registry is required, so a missing registration fails loudly instead of disabling the signal.
+        internal SyncService CreateSync(ITwitchSchedules twitch, IDiscordSync discord, IScheduleConfigSource configSource, SyncOptions options) =>
+            new(
+                twitch,
+                discord,
+                configSource,
+                options,
+                _services.GetRequiredService<ILogger<SyncService>>(),
+                _services.GetRequiredService<HealthRegistry>(),
+                _services.GetRequiredService<TimeProvider>());
 
         internal void Attach(SyncService sync, IAsyncDisposable discord)
         {
