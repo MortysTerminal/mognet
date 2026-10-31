@@ -37,11 +37,20 @@ namespace Mognet.Modules.TwitchSchedule.Sync
                 if (string.IsNullOrWhiteSpace(raw))
                     return Default;
 
+                return Validate(raw, EnvironmentVariable);
+            }
+
+            /// <summary>
+            /// Parses a raw setting value. Throws <see cref="InvalidOperationException"/> naming
+            /// <paramref name="name"/>, the value and the allowed range.
+            /// </summary>
+            public int Validate(string raw, string name)
+            {
                 if (!int.TryParse(raw.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ||
                     value < Min || value > Max)
                 {
                     throw new InvalidOperationException(
-                        $"{EnvironmentVariable} = '{raw}' is invalid: use a whole number from {Min} to {Max} " +
+                        $"{name} = '{raw}' is invalid: use a whole number from {Min} to {Max} " +
                         $"(default {Default} when not set)."
                     );
                 }
