@@ -84,6 +84,22 @@ namespace Mognet.Modules.Alerts.Tests
         }
 
         [Fact]
+        public async Task A_response_body_that_stalls_ends_as_a_logged_failure_within_the_request_timeout()
+        {
+            await ReadyAsync();
+            var before = await SnapshotAsync();
+            _h.Http.AddUpcoming("str001", StreamStart.AddHours(3).ToString("O"));
+            _h.Http.Intercept = r => r.Endpoint == "videos" ? Reply.Stalled() : null;
+            var timed = _h.NewService(TimeSpan.FromMilliseconds(200));
+
+            // If the timeout did not cover the body, the cycle would hang; WaitAsync fails the test instead.
+            await timed.RunCycleAsync().WaitAsync(TimeSpan.FromSeconds(10));
+
+            Assert.Equal(before, await SnapshotAsync());
+            Assert.Contains(_h.Log.At(LogLevel.Warning), m => m.Contains("videos call") && m.Contains("timeout"));
+        }
+
+        [Fact]
         public async Task A_failed_playlist_call_does_not_stop_the_tracked_stream_from_being_read()
         {
             var service = await ReadyAsync();

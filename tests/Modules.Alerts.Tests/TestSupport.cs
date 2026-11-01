@@ -64,11 +64,30 @@ namespace Mognet.Modules.Alerts.Tests
 
     public sealed record Reply(HttpStatusCode Status, string Body)
     {
+        /// <summary>Headers arrive but the body never does.</summary>
+        public bool Stall { get; init; }
+
+        public static Reply Stalled() => new(HttpStatusCode.OK, "") { Stall = true };
+
         public static Reply Ok(string body) => new(HttpStatusCode.OK, body);
 
         public static Reply QuotaExceeded() => new(HttpStatusCode.Forbidden, Fixture.Load("error-quota-exceeded.json"));
 
         public static Reply Malformed() => Ok("{ this is not json");
+    }
+
+    internal sealed class StalledContent : HttpContent
+    {
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) => Task.Delay(Timeout.Infinite);
+
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context, CancellationToken cancellationToken) =>
+            Task.Delay(Timeout.Infinite, cancellationToken);
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = -1;
+            return false;
+        }
     }
 
     public sealed record Recorded(string Endpoint, Uri Uri, string? ApiKey, NameValueCollection Query)
@@ -116,7 +135,7 @@ namespace Mognet.Modules.Alerts.Tests
             var reply = Intercept?.Invoke(recorded) ?? Answer(recorded);
             return Task.FromResult(new HttpResponseMessage(reply.Status)
             {
-                Content = new StringContent(reply.Body, Encoding.UTF8, "application/json"),
+                Content = reply.Stall ? new StalledContent() : new StringContent(reply.Body, Encoding.UTF8, "application/json"),
             });
         }
 

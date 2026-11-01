@@ -97,7 +97,7 @@ namespace Mognet.Modules.Alerts.YouTube
             else
                 _quota.AddUnits(1);
 
-            using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            using var response = await _http.SendAsync(request, cancellationToken);
             await using var body = await response.Content.ReadAsStreamAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
                 throw new YouTubeApiException(response.StatusCode, await ReadReasonAsync(body, cancellationToken));

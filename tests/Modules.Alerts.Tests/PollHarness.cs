@@ -55,10 +55,10 @@ namespace Mognet.Modules.Alerts.Tests
 
         public QuotaCounter? Quota { get; private set; }
 
-        public PollService NewService()
+        public PollService NewService(TimeSpan? requestTimeout = null)
         {
             Quota = new QuotaCounter(Clock);
-            var api = new YouTubeApi(new HttpClient(Http) { Timeout = TimeSpan.FromSeconds(30) }, ApiKey, Quota);
+            var api = new YouTubeApi(new HttpClient(Http) { Timeout = requestTimeout ?? TimeSpan.FromSeconds(30) }, ApiKey, Quota);
             var provider = new YouTubeProvider(api, Quota, Log.Logger<YouTubeProvider>(), Clock);
             return new PollService([provider], Store, Settings, Log.Logger<PollService>(), Health, Clock);
         }

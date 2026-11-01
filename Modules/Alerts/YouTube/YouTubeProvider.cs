@@ -65,9 +65,17 @@ namespace Mognet.Modules.Alerts.YouTube
 
         // The first read takes every page of the uploads playlist and one search, then reads all of it through
         // videos.list. Anything failing returns Incomplete, so nothing is stored and the whole read is repeated.
+        // The search is marked when it is sent, so a read that fails after it waits for the search interval and
+        // cannot spend the daily search calls; a read that fails before it is repeated at once.
         private async Task<SourcePoll> ReadBaselineAsync(AlertSource source, string uploads, CancellationToken cancellationToken)
         {
             var now = _time.GetUtcNow();
+            if (!_search.IsDue(source.Id, now))
+            {
+                _logger.LogDebug("The first read of YouTube source {SourceId} waits for the search interval.", source.Id);
+                return SourcePoll.Incomplete;
+            }
+
             var ids = new HashSet<string>(StringComparer.Ordinal);
             try
             {

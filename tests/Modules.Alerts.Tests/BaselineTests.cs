@@ -86,6 +86,7 @@ namespace Mognet.Modules.Alerts.Tests
             Assert.Empty(await h.KnownAsync(source.Id));
 
             h.Http.Intercept = null;
+            h.Clock.Advance(TimeSpan.FromMinutes(30));
             await service.RunCycleAsync();
 
             Assert.True((await h.Store.GetSourceAsync(source.Id))!.BaselineRecorded);
@@ -135,6 +136,67 @@ namespace Mognet.Modules.Alerts.Tests
             Assert.Empty(h.Http.To("videos"));
             Assert.False((await h.Store.GetSourceAsync(source.Id))!.BaselineRecorded);
             Assert.Contains(h.Log.At(LogLevel.Error), m => m.Contains("more than 200 pages"));
+        }
+
+        [Fact]
+        public async Task A_baseline_that_keeps_failing_after_the_search_makes_one_search_call_per_search_interval()
+        {
+            var h = await HarnessAsync();
+            var source = await h.AddSourceAsync();
+            var service = h.NewService();
+            h.Http.Intercept = r => r.Endpoint == "videos" ? Reply.QuotaExceeded() : null;
+
+            for (var i = 0; i < 5; i++)
+            {
+                await service.RunCycleAsync();
+                h.Clock.Advance(TimeSpan.FromMinutes(5));
+            }
+
+            Assert.Single(h.Http.To("search"));
+            Assert.False((await h.Store.GetSourceAsync(source.Id))!.BaselineRecorded);
+
+            h.Clock.Advance(TimeSpan.FromMinutes(10));
+            await service.RunCycleAsync();
+            Assert.Equal(2, h.Http.To("search").Count());
+
+            h.Http.Intercept = null;
+            h.Clock.Advance(TimeSpan.FromMinutes(30));
+            await service.RunCycleAsync();
+            Assert.True((await h.Store.GetSourceAsync(source.Id))!.BaselineRecorded);
+        }
+
+        [Fact]
+        public async Task A_baseline_that_waits_for_the_search_interval_makes_no_call_at_all()
+        {
+            var h = await HarnessAsync();
+            await h.AddSourceAsync();
+            var service = h.NewService();
+            h.Http.Intercept = r => r.Endpoint == "videos" ? Reply.QuotaExceeded() : null;
+            await service.RunCycleAsync();
+            h.Http.Requests.Clear();
+            h.Clock.Advance(TimeSpan.FromMinutes(5));
+
+            await service.RunCycleAsync();
+
+            Assert.Empty(h.Http.Requests);
+        }
+
+        [Fact]
+        public async Task A_baseline_that_fails_on_the_playlist_is_retried_in_the_next_cycle_without_a_search()
+        {
+            var h = await HarnessAsync();
+            var source = await h.AddSourceAsync();
+            var service = h.NewService();
+            h.Http.Intercept = r => r.Endpoint == "playlistItems" ? Reply.QuotaExceeded() : null;
+            await service.RunCycleAsync();
+            Assert.Empty(h.Http.To("search"));
+            h.Http.Intercept = null;
+            h.Clock.Advance(TimeSpan.FromMinutes(5));
+
+            await service.RunCycleAsync();
+
+            Assert.True((await h.Store.GetSourceAsync(source.Id))!.BaselineRecorded);
+            Assert.Single(h.Http.To("search"));
         }
 
         [Fact]
