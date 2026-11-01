@@ -1,6 +1,7 @@
 using System.Data.Common;
 using System.Globalization;
 using Mognet.Bot.Core.Storage;
+using Mognet.Modules.Alerts.Providers;
 
 namespace Mognet.Modules.Alerts.Storage
 {
@@ -11,7 +12,7 @@ namespace Mognet.Modules.Alerts.Storage
     public sealed class AlertSourceStore
     {
         private const string SourceColumns = "id, platform, external_id, baseline_recorded_at IS NOT NULL, created_at";
-        private const string ContentColumns = "source_id, content_id, scheduled_start, first_seen_at, last_refreshed_at";
+        private const string ContentColumns = "source_id, content_id, scheduled_start, first_seen_at, last_refreshed_at, live_state";
 
         private readonly SqliteStore _store;
 
@@ -84,24 +85,27 @@ namespace Mognet.Modules.Alerts.Storage
         }
 
         /// <summary>
-        /// Stores an item or updates the start and the refresh time of a known one. The first-seen time never changes.
-        /// The source must exist.
+        /// Stores an item or updates the start, the live state and the refresh time of a known one. The first-seen time
+        /// never changes. A <see langword="null"/> start or state replaces a stored one, so call this only with data
+        /// from the platform's detail call. The source must exist.
         /// </summary>
-        public async Task UpsertKnownContentAsync(long sourceId, string contentId, DateTimeOffset? scheduledStart, DateTimeOffset now, CancellationToken cancellationToken = default)
+        public async Task UpsertKnownContentAsync(long sourceId, string contentId, DateTimeOffset? scheduledStart, DateTimeOffset now, LiveState? liveState = null, CancellationToken cancellationToken = default)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(contentId);
 
             await using var connection = await _store.OpenConnectionAsync(cancellationToken);
             await using var command = Command(connection, """
-                INSERT INTO known_content (source_id, content_id, scheduled_start, first_seen_at, last_refreshed_at)
-                VALUES ($source_id, $content_id, $start, $at, $at)
+                INSERT INTO known_content (source_id, content_id, scheduled_start, first_seen_at, last_refreshed_at, live_state)
+                VALUES ($source_id, $content_id, $start, $at, $at, $live_state)
                 ON CONFLICT (source_id, content_id) DO UPDATE SET
                     scheduled_start = excluded.scheduled_start,
-                    last_refreshed_at = excluded.last_refreshed_at
+                    last_refreshed_at = excluded.last_refreshed_at,
+                    live_state = excluded.live_state
                 """);
             Add(command, "$source_id", sourceId);
             Add(command, "$content_id", contentId);
             Add(command, "$start", scheduledStart is { } start ? Format(start) : null);
+            Add(command, "$live_state", liveState is { } state ? FormatState(state) : null);
             Add(command, "$at", Format(now));
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
@@ -168,7 +172,24 @@ namespace Mognet.Modules.Alerts.Storage
             new(reader.GetInt64(0), reader.GetString(1), reader.GetString(2), reader.GetInt64(3) != 0, Parse(reader.GetString(4)));
 
         private static KnownContent ReadContent(DbDataReader reader) =>
-            new(reader.GetInt64(0), reader.GetString(1), reader.IsDBNull(2) ? null : Parse(reader.GetString(2)), Parse(reader.GetString(3)), Parse(reader.GetString(4)));
+            new(reader.GetInt64(0), reader.GetString(1), reader.IsDBNull(2) ? null : Parse(reader.GetString(2)), Parse(reader.GetString(3)), Parse(reader.GetString(4)),
+                reader.IsDBNull(5) ? null : ParseState(reader.GetString(5)));
+
+        private static string FormatState(LiveState state) => state switch
+        {
+            LiveState.Upcoming => "upcoming",
+            LiveState.Live => "live",
+            LiveState.Ended => "ended",
+            _ => throw new ArgumentOutOfRangeException(nameof(state)),
+        };
+
+        private static LiveState ParseState(string text) => text switch
+        {
+            "upcoming" => LiveState.Upcoming,
+            "live" => LiveState.Live,
+            "ended" => LiveState.Ended,
+            _ => throw new InvalidOperationException($"Unknown live state '{text}' in the database."),
+        };
 
         // Fixed-width UTC text: string order equals time order.
         private static string Format(DateTimeOffset time) => time.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);

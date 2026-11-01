@@ -1,0 +1,16 @@
+{
+  "kind": "youtube#video",
+  "id": "__ID__",
+  "snippet": {
+    "publishedAt": "2026-01-02T08:15:00Z",
+    "channelId": "UCtestchannel0000000001",
+    "title": "Neutral test stream",
+    "liveBroadcastContent": "upcoming"
+  },
+  "contentDetails": { "duration": "P0D" },
+  "status": { "privacyStatus": "unlisted", "uploadStatus": "uploaded" },
+  "liveStreamingDetails": {
+    "scheduledStartTime": "__START__",
+    "activeLiveChatId": "chat-__ID__"
+  }
+}

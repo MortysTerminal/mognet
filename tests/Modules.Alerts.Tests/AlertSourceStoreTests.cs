@@ -1,3 +1,5 @@
+using Mognet.Bot.Core.Storage;
+using Mognet.Modules.Alerts.Providers;
 using Mognet.Modules.Alerts.Storage;
 
 namespace Mognet.Modules.Alerts.Tests
@@ -285,14 +287,69 @@ namespace Mognet.Modules.Alerts.Tests
         }
 
         [Fact]
-        public async Task Only_ids_times_and_the_start_are_stored_for_known_content()
+        public async Task Only_ids_times_the_start_and_the_live_state_are_stored_for_known_content()
         {
             await Store();
 
             var columns = (await _db.QueryAsync("SELECT name FROM pragma_table_info('known_content') ORDER BY cid"))
                 .Select(r => (string)r[0]!);
 
-            Assert.Equal(["source_id", "content_id", "scheduled_start", "first_seen_at", "last_refreshed_at"], columns);
+            Assert.Equal(["source_id", "content_id", "scheduled_start", "first_seen_at", "last_refreshed_at", "live_state"], columns);
+        }
+
+        [Theory]
+        [InlineData(LiveState.Upcoming, "upcoming")]
+        [InlineData(LiveState.Live, "live")]
+        [InlineData(LiveState.Ended, "ended")]
+        public async Task The_live_state_is_stored_as_text_and_read_back(LiveState state, string text)
+        {
+            var store = await Store();
+            var source = await store.AddSourceAsync("youtube", "UC1", T0);
+
+            await store.UpsertKnownContentAsync(source.Id, "v1", T0.AddDays(1), T0, state);
+
+            Assert.Equal(state, (await store.GetKnownContentAsync(source.Id, "v1"))!.LiveState);
+            Assert.Equal(text, (await _db.QueryAsync("SELECT live_state FROM known_content"))[0][0]);
+        }
+
+        [Fact]
+        public async Task Ordinary_content_has_no_live_state_and_an_upsert_replaces_a_stored_one()
+        {
+            var store = await Store();
+            var source = await store.AddSourceAsync("youtube", "UC1", T0);
+            await store.UpsertKnownContentAsync(source.Id, "v1", null, T0);
+            Assert.Null((await store.GetKnownContentAsync(source.Id, "v1"))!.LiveState);
+
+            await store.UpsertKnownContentAsync(source.Id, "v1", T0.AddDays(1), T0, LiveState.Upcoming);
+            await store.UpsertKnownContentAsync(source.Id, "v1", T0.AddDays(1), T0.AddHours(1), LiveState.Live);
+
+            Assert.Equal(LiveState.Live, (await store.GetKnownContentAsync(source.Id, "v1"))!.LiveState);
+        }
+
+        [Fact]
+        public async Task The_database_rejects_an_unknown_live_state()
+        {
+            var store = await Store();
+            var source = await store.AddSourceAsync("youtube", "UC1", T0);
+            await store.UpsertKnownContentAsync(source.Id, "v1", null, T0);
+
+            await Assert.ThrowsAnyAsync<Exception>(() => _db.ExecuteAsync("UPDATE known_content SET live_state = 'paused'"));
+        }
+
+        [Fact]
+        public async Task Migration_two_keeps_rows_written_under_migration_one()
+        {
+            _db = AlertsDb.CreateUnmigrated();
+            var runner = new MigrationRunner(_db.Store);
+            await runner.ApplyAsync([CoreMigrations.Set, new MigrationSet(AlertsModule.ModuleId, [AlertsMigrations.Set.Migrations[0]])]);
+            await _db.ExecuteAsync("INSERT INTO sources (platform, external_id, created_at) VALUES ('youtube', 'UC1', '2026-01-01T00:00:00.0000000+00:00')");
+            await _db.ExecuteAsync("INSERT INTO known_content VALUES (1, 'v1', NULL, '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00')");
+
+            await runner.ApplyAsync([CoreMigrations.Set, AlertsMigrations.Set]);
+
+            var item = await new AlertSourceStore(_db.Store).GetKnownContentAsync(1, "v1");
+            Assert.NotNull(item);
+            Assert.Null(item.LiveState);
         }
 
         [Fact]

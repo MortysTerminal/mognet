@@ -1,0 +1,5 @@
+{
+  "kind": "youtube#searchResult",
+  "etag": "etag-search-item",
+  "id": { "kind": "youtube#video", "videoId": "__ID__" }
+}
