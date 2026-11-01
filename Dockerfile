@@ -6,6 +6,7 @@ WORKDIR /src
 # Restore first so the dependency layer is cached between code changes
 COPY ["Bot.Host/Bot.Host.csproj", "Bot.Host/"]
 COPY ["Bot.Core/Bot.Core.csproj", "Bot.Core/"]
+COPY ["Modules/Alerts/Modules.Alerts.csproj", "Modules/Alerts/"]
 COPY ["Modules/TwitchSchedule/Modules.TwitchSchedule.csproj", "Modules/TwitchSchedule/"]
 RUN dotnet restore "Bot.Host/Bot.Host.csproj"
 

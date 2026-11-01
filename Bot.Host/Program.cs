@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Mognet.Bot.Core;
 using Mognet.Bot.Core.Health;
 using Mognet.Bot.Core.Modules;
+using Mognet.Modules.Alerts;
 using Mognet.Modules.TwitchSchedule;
 using Serilog;
 
@@ -50,6 +51,7 @@ try
             services.AddMognetCore(context.Configuration);
             services.AddMognetHealthFile();
             services.AddSingleton<IBotModule, TwitchScheduleModule>();
+            services.AddSingleton<IBotModule, AlertsModule>();
         })
 
         .Build();

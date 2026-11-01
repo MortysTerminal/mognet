@@ -2,10 +2,12 @@
   <Project Path="Bot.Core/Bot.Core.csproj" />
   <Project Path="Bot.Host/Bot.Host.csproj" />
   <Folder Name="/Modules/">
+    <Project Path="Modules/Alerts/Modules.Alerts.csproj" />
     <Project Path="Modules/TwitchSchedule/Modules.TwitchSchedule.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Bot.Core.Tests/Bot.Core.Tests.csproj" />
+    <Project Path="tests/Modules.Alerts.Tests/Modules.Alerts.Tests.csproj" />
     <Project Path="tests/Modules.TwitchSchedule.Tests/Modules.TwitchSchedule.Tests.csproj" />
   </Folder>
 </Solution>

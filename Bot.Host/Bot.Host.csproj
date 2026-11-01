@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Bot.Core\Bot.Core.csproj" />
+    <ProjectReference Include="..\Modules\Alerts\Modules.Alerts.csproj" />
     <ProjectReference Include="..\Modules\TwitchSchedule\Modules.TwitchSchedule.csproj" />
   </ItemGroup>
 
