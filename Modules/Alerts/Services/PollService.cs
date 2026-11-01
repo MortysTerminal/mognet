@@ -129,7 +129,12 @@ namespace Mognet.Modules.Alerts.Services
             }
 
             foreach (var change in ChangeDetector.Detect(poll.Items, known))
-                _logger.LogInformation("Content {ContentId} of {Platform} source {SourceId}: {Change}.", change.ContentId, provider.Platform, source.Id, change.Kind);
+            {
+                if (change.Type is { } type)
+                    _logger.LogInformation("Content {ContentId} of {Platform} source {SourceId}: {Change} ({Type}).", change.ContentId, provider.Platform, source.Id, change.Kind, type);
+                else
+                    _logger.LogInformation("Content {ContentId} of {Platform} source {SourceId}: {Change}.", change.ContentId, provider.Platform, source.Id, change.Kind);
+            }
 
             await StoreAsync(source, poll.Items, now, cancellationToken);
             foreach (var id in poll.Gone)
@@ -142,7 +147,7 @@ namespace Mognet.Modules.Alerts.Services
         private async Task StoreAsync(AlertSource source, IReadOnlyList<ContentItem> items, DateTimeOffset now, CancellationToken cancellationToken)
         {
             foreach (var item in items)
-                await _sources.UpsertKnownContentAsync(source.Id, item.ContentId, item.ScheduledStart, now, item.LiveState, cancellationToken);
+                await _sources.UpsertKnownContentAsync(source.Id, item.ContentId, item.ScheduledStart, now, item.LiveState, item.Type, cancellationToken);
         }
 
         // An invalid stored value keeps the last valid one and is logged; an unreadable database ends the cycle.

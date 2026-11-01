@@ -294,7 +294,7 @@ namespace Mognet.Modules.Alerts.Tests
             var columns = (await _db.QueryAsync("SELECT name FROM pragma_table_info('known_content') ORDER BY cid"))
                 .Select(r => (string)r[0]!);
 
-            Assert.Equal(["source_id", "content_id", "scheduled_start", "first_seen_at", "last_refreshed_at", "live_state"], columns);
+            Assert.Equal(["source_id", "content_id", "scheduled_start", "first_seen_at", "last_refreshed_at", "live_state", "content_type"], columns);
         }
 
         [Theory]
@@ -350,6 +350,75 @@ namespace Mognet.Modules.Alerts.Tests
             var item = await new AlertSourceStore(_db.Store).GetKnownContentAsync(1, "v1");
             Assert.NotNull(item);
             Assert.Null(item.LiveState);
+        }
+
+        [Theory]
+        [InlineData(ContentType.Video, "video")]
+        [InlineData(ContentType.Short, "short")]
+        [InlineData(ContentType.StreamScheduled, "stream_scheduled")]
+        [InlineData(ContentType.StreamLive, "stream_live")]
+        [InlineData(ContentType.StreamEnded, "stream_ended")]
+        [InlineData(ContentType.Unclassified, "unclassified")]
+        public async Task The_type_is_stored_as_text_and_read_back(ContentType type, string text)
+        {
+            var store = await Store();
+            var source = await store.AddSourceAsync("youtube", "UC1", T0);
+
+            await store.UpsertKnownContentAsync(source.Id, "v1", null, T0, contentType: type);
+
+            Assert.Equal(type, (await store.GetKnownContentAsync(source.Id, "v1"))!.Type);
+            Assert.Equal(text, (await _db.QueryAsync("SELECT content_type FROM known_content"))[0][0]);
+        }
+
+        [Fact]
+        public async Task An_item_stored_without_a_type_has_none()
+        {
+            var store = await Store();
+            var source = await store.AddSourceAsync("youtube", "UC1", T0);
+
+            await store.UpsertKnownContentAsync(source.Id, "v1", null, T0);
+
+            Assert.Null((await store.GetKnownContentAsync(source.Id, "v1"))!.Type);
+        }
+
+        [Fact]
+        public async Task An_upsert_without_a_type_keeps_the_stored_one_and_a_new_type_replaces_it()
+        {
+            var store = await Store();
+            var source = await store.AddSourceAsync("youtube", "UC1", T0);
+            await store.UpsertKnownContentAsync(source.Id, "v1", null, T0, contentType: ContentType.Unclassified);
+
+            await store.UpsertKnownContentAsync(source.Id, "v1", null, T0.AddHours(1));
+            Assert.Equal(ContentType.Unclassified, (await store.GetKnownContentAsync(source.Id, "v1"))!.Type);
+
+            await store.UpsertKnownContentAsync(source.Id, "v1", null, T0.AddHours(2), contentType: ContentType.Video);
+            Assert.Equal(ContentType.Video, (await store.GetKnownContentAsync(source.Id, "v1"))!.Type);
+        }
+
+        [Fact]
+        public async Task The_database_rejects_an_unknown_type()
+        {
+            var store = await Store();
+            var source = await store.AddSourceAsync("youtube", "UC1", T0);
+            await store.UpsertKnownContentAsync(source.Id, "v1", null, T0);
+
+            await Assert.ThrowsAnyAsync<Exception>(() => _db.ExecuteAsync("UPDATE known_content SET content_type = 'podcast'"));
+        }
+
+        [Fact]
+        public async Task Migration_three_keeps_rows_written_under_migration_two_with_no_type()
+        {
+            _db = AlertsDb.CreateUnmigrated();
+            var runner = new MigrationRunner(_db.Store);
+            await runner.ApplyAsync([CoreMigrations.Set, new MigrationSet(AlertsModule.ModuleId, AlertsMigrations.Set.Migrations.Take(2).ToList())]);
+            await _db.ExecuteAsync("INSERT INTO sources (platform, external_id, created_at) VALUES ('youtube', 'UC1', '2026-01-01T00:00:00.0000000+00:00')");
+            await _db.ExecuteAsync("INSERT INTO known_content VALUES (1, 'v1', NULL, '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00', 'live')");
+
+            await runner.ApplyAsync([CoreMigrations.Set, AlertsMigrations.Set]);
+
+            var item = (await new AlertSourceStore(_db.Store).GetKnownContentAsync(1, "v1"))!;
+            Assert.Equal(LiveState.Live, item.LiveState);
+            Assert.Null(item.Type);
         }
 
         [Fact]

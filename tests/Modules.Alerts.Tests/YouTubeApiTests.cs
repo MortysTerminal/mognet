@@ -161,7 +161,7 @@ namespace Mognet.Modules.Alerts.Tests
         private async Task<ContentItem> ParseAsync(string item)
         {
             _http.Intercept = _ => Reply.Ok(Fixture.Wrap("videos-response.json", [item]));
-            return Assert.Single(await Api().GetVideosAsync(["x"], default));
+            return Assert.Single(await Api().GetVideosAsync(["x"], default)).Item;
         }
 
         [Fact]
@@ -203,6 +203,38 @@ namespace Mognet.Modules.Alerts.Tests
 
             Assert.Null((await ParseAsync(ordinary)).ScheduledStart);
             Assert.Equal(new DateTimeOffset(2026, 4, 1, 18, 0, 0, TimeSpan.Zero), (await ParseAsync(stream)).ScheduledStart);
+        }
+
+        private async Task<ClassificationFacts> FactsAsync(string item)
+        {
+            _http.Intercept = _ => Reply.Ok(Fixture.Wrap("videos-response.json", [item]));
+            return Assert.Single(await Api().GetVideosAsync(["x"], default)).Facts;
+        }
+
+        [Fact]
+        public async Task The_facts_of_an_ordinary_video_are_read_as_they_are()
+        {
+            Assert.Equal(new ClassificationFacts("none", false, false, false, false, "PT12M30S"), await FactsAsync(Fixture.Item("video-ordinary.json", "vid001")));
+        }
+
+        [Fact]
+        public async Task The_facts_of_a_scheduled_stream_a_running_stream_and_an_ended_stream()
+        {
+            Assert.Equal(new ClassificationFacts("upcoming", true, true, false, false, "P0D"), await FactsAsync(Fixture.Item("video-upcoming.json", "s1")));
+            Assert.Equal(new ClassificationFacts("live", true, true, true, false, "P0D"), await FactsAsync(Fixture.Item("video-live.json", "s1")));
+            Assert.Equal(new ClassificationFacts("none", true, true, true, true, "PT3H1M"), await FactsAsync(Fixture.Item("video-ended.json", "s1")));
+        }
+
+        [Fact]
+        public async Task A_value_or_a_field_the_documentation_does_not_list_is_kept_or_missing_not_mapped()
+        {
+            var odd = Fixture.Item("video-ordinary.json", "vid001").Replace("\"liveBroadcastContent\": \"none\"", "\"liveBroadcastContent\": \"paused\"");
+            var missing = Fixture.Item("video-ordinary.json", "vid001").Replace("\"liveBroadcastContent\": \"none\"", "\"x\": 1").Replace("\"duration\": \"PT12M30S\"", "\"x\": 1");
+
+            Assert.Equal("paused", (await FactsAsync(odd)).LiveBroadcastContent);
+            var facts = await FactsAsync(missing);
+            Assert.Null(facts.LiveBroadcastContent);
+            Assert.Null(facts.Duration);
         }
 
         [Fact]

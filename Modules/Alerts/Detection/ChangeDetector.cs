@@ -8,7 +8,8 @@ namespace Mognet.Modules.Alerts.Detection
     {
         /// <summary>
         /// One <see cref="ChangeKind.New"/> for an unknown id; for a known id one change per differing field, so
-        /// an item can report both a moved start and a new live state. Equal items report nothing.
+        /// an item can report both a moved start and a new live state. An item without a type (not determined this
+        /// time) never reports a type change. Equal items report nothing.
         /// </summary>
         public static IReadOnlyList<ContentChange> Detect(IEnumerable<ContentItem> fetched, IReadOnlyList<KnownContent> known)
         {
@@ -18,7 +19,7 @@ namespace Mognet.Modules.Alerts.Detection
             {
                 if (!byId.TryGetValue(item.ContentId, out var stored))
                 {
-                    changes.Add(new ContentChange(item.ContentId, ChangeKind.New));
+                    changes.Add(new ContentChange(item.ContentId, ChangeKind.New, item.Type));
                     continue;
                 }
 
@@ -26,6 +27,8 @@ namespace Mognet.Modules.Alerts.Detection
                     changes.Add(new ContentChange(item.ContentId, ChangeKind.ScheduledStartChanged));
                 if (item.LiveState != stored.LiveState)
                     changes.Add(new ContentChange(item.ContentId, ChangeKind.LiveStateChanged));
+                if (item.Type is { } type && type != stored.Type)
+                    changes.Add(new ContentChange(item.ContentId, ChangeKind.TypeChanged, type));
             }
 
             return changes;
