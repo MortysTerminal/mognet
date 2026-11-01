@@ -1,0 +1,6 @@
+{
+  "kind": "youtube#playlistItem",
+  "etag": "etag-item",
+  "id": "playlist-entry-__ID__",
+  "contentDetails": { "videoId": "__ID__", "videoPublishedAt": "2026-01-05T10:00:00Z" }
+}

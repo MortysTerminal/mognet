@@ -29,6 +29,10 @@ services:
       - Twitch__ClientId=${TWITCH_CLIENT_ID}
       - Twitch__ClientSecret=${TWITCH_CLIENT_SECRET}
 
+      # Optional: YouTube Data API key, read each time the alerts module starts. The module does not start
+      # without it, so set it before switching the module on.
+      - YOUTUBE_API_KEY
+
       # ── Twitch channels: imported once ───────────────────────────────────────
       # The channels below and the Sync__* and Discord__EventLanguage values are read once, at the first start
       # of the schedule module, and stored in the database. After that the database wins: changing these

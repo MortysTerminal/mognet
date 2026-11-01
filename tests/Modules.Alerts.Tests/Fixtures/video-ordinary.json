@@ -1,0 +1,12 @@
+{
+  "kind": "youtube#video",
+  "id": "__ID__",
+  "snippet": {
+    "publishedAt": "2026-01-05T10:00:00Z",
+    "channelId": "UCtestchannel0000000001",
+    "title": "Neutral test title",
+    "liveBroadcastContent": "none"
+  },
+  "contentDetails": { "duration": "PT12M30S" },
+  "status": { "privacyStatus": "public", "uploadStatus": "processed" }
+}

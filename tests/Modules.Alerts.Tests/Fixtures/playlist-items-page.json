@@ -1,0 +1,6 @@
+{
+  "kind": "youtube#playlistItemListResponse",
+  "etag": "etag-playlist",__NEXT__
+  "pageInfo": { "totalResults": 120, "resultsPerPage": 50 },
+  "items": [__ITEMS__]
+}

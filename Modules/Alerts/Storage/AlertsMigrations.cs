@@ -26,6 +26,10 @@ namespace Mognet.Modules.Alerts.Storage
                 );
                 CREATE INDEX known_content_last_refreshed ON known_content (last_refreshed_at);
                 """),
+            new Migration(2, "known_content_live_state", """
+                ALTER TABLE known_content ADD COLUMN live_state TEXT NULL
+                    CHECK (live_state IN ('upcoming', 'live', 'ended'));
+                """),
         ]);
     }
 }
