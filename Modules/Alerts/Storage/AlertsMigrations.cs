@@ -30,6 +30,10 @@ namespace Mognet.Modules.Alerts.Storage
                 ALTER TABLE known_content ADD COLUMN live_state TEXT NULL
                     CHECK (live_state IN ('upcoming', 'live', 'ended'));
                 """),
+            new Migration(3, "known_content_type", """
+                ALTER TABLE known_content ADD COLUMN content_type TEXT NULL
+                    CHECK (content_type IN ('video', 'short', 'stream_scheduled', 'stream_live', 'stream_ended', 'unclassified'));
+                """),
         ]);
     }
 }

@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Mognet.Modules.Alerts.Providers;
@@ -10,6 +11,11 @@ namespace Mognet.Modules.Alerts.YouTube
     /// <c>UU</c>. Listings only supply ids; everything stored comes from <c>videos.list</c>. Every call may fail:
     /// the failure is logged with the status and reason only, the result simply lacks that step's data, and the next
     /// cycle repeats it.
+    /// <para>
+    /// Types come from the live details where they decide alone, otherwise from the first page of the channel's
+    /// <c>UUSH</c>, <c>UULF</c> and <c>UULV</c> playlists. Those three are read at most once per source and cycle, and
+    /// only when an item of that cycle needs them.
+    /// </para>
     /// </summary>
     public sealed class YouTubeProvider : IContentProvider
     {
@@ -20,6 +26,9 @@ namespace Mognet.Modules.Alerts.YouTube
 
         /// <summary>Known content is read again once its last refresh is older than this.</summary>
         public static readonly TimeSpan RefreshAfter = TimeSpan.FromDays(25);
+
+        /// <summary>An item that is still unclassified is checked again every cycle until it is this old.</summary>
+        public static readonly TimeSpan RecheckWindow = TimeSpan.FromHours(24);
 
         private readonly YouTubeApi _api;
         private readonly QuotaCounter _quota;
@@ -99,9 +108,12 @@ namespace Mognet.Modules.Alerts.YouTube
                 _search.MarkSearched(source.Id, now);
                 ids.UnionWith(await _api.SearchUpcomingAsync(source.ExternalId, cancellationToken));
 
+                // No playlist membership is read here: these items existed before tracking started and are never
+                // alerted, so their type stays null. A stream that is still scheduled or live is the exception; its
+                // live details decide alone and it keeps being tracked.
                 var items = new List<ContentItem>();
                 foreach (var chunk in ids.Chunk(YouTubeApi.MaxIdsPerCall))
-                    items.AddRange(await _api.GetVideosAsync(chunk, cancellationToken));
+                    items.AddRange((await _api.GetVideosAsync(chunk, cancellationToken)).Select(BaselineItem));
 
                 return new SourcePoll(items, [], Complete: true);
             }
@@ -111,6 +123,9 @@ namespace Mognet.Modules.Alerts.YouTube
                 return SourcePoll.Incomplete;
             }
         }
+
+        private static ContentItem BaselineItem(YouTubeVideo video) =>
+            YouTubeClassifier.DependsOnMembership(video.Facts) ? video.Item : video.Item with { Type = YouTubeClassifier.Classify(video.Facts) };
 
         private async Task<SourcePoll> ReadAsync(AlertSource source, string uploads, IReadOnlyList<KnownContent> known, CancellationToken cancellationToken)
         {
@@ -140,8 +155,10 @@ namespace Mognet.Modules.Alerts.YouTube
             // storage limit.
             var staleBefore = now - RefreshAfter;
             wanted.UnionWith(known
-                .Where(k => k.LiveState is LiveState.Upcoming or LiveState.Live || k.LastRefreshedAt < staleBefore)
+                .Where(k => k.LiveState is LiveState.Upcoming or LiveState.Live || k.LastRefreshedAt < staleBefore || IsOpenForClassification(k, now))
                 .Select(k => k.ContentId));
+
+            var membership = new MembershipReader(_api, _logger, source, uploads, cancellationToken);
 
             var items = new List<ContentItem>();
             var gone = new List<string>();
@@ -159,13 +176,48 @@ namespace Mognet.Modules.Alerts.YouTube
                         return;
                     }
 
-                    items.AddRange(answer);
-                    var returned = answer.Select(a => a.ContentId).ToHashSet(StringComparer.Ordinal);
+                    foreach (var video in answer)
+                        items.Add(await ClassifyAsync(video, knownById.GetValueOrDefault(video.Item.ContentId), membership, now));
+
+                    var returned = answer.Select(a => a.Item.ContentId).ToHashSet(StringComparer.Ordinal);
                     gone.AddRange(chunk.Where(id => !returned.Contains(id) && knownById.ContainsKey(id)));
                 }, cancellationToken);
             }
 
             return new SourcePoll(items, gone, Complete: true);
+        }
+
+        // Still to be classified: unclassified and younger than the window, or a stream whose type is a stage before
+        // the end although it has ended (its membership read failed).
+        private static bool IsOpenForClassification(KnownContent k, DateTimeOffset now) =>
+            (k.Type == ContentType.Unclassified && now - k.FirstSeenAt < RecheckWindow) ||
+            (k.Type is ContentType.StreamScheduled or ContentType.StreamLive && k.LiveState == LiveState.Ended);
+
+        // The playlist lists are read only for an item they can decide: a new one, one that was a stream a moment
+        // ago, or one still open for classification. A refresh of an ordinary known item keeps its type.
+        private static bool NeedsMembership(ClassificationFacts facts, KnownContent? known, DateTimeOffset now) =>
+            YouTubeClassifier.DependsOnMembership(facts) &&
+            (known is null ||
+             known.LiveState is LiveState.Upcoming or LiveState.Live ||
+             known.Type is ContentType.StreamScheduled or ContentType.StreamLive ||
+             (known.Type == ContentType.Unclassified && now - known.FirstSeenAt < RecheckWindow));
+
+        // A known item whose lists could not all be read keeps its stored type: a failed read changes nothing. A new
+        // item takes the classifier's answer, which is unclassified unless the lists it did read are conclusive.
+        private async Task<ContentItem> ClassifyAsync(YouTubeVideo video, KnownContent? known, MembershipReader membership, DateTimeOffset now)
+        {
+            if (!NeedsMembership(video.Facts, known, now))
+                return video.Item with { Type = YouTubeClassifier.DependsOnMembership(video.Facts) ? null : YouTubeClassifier.Classify(video.Facts) };
+
+            var lists = await membership.GetAsync();
+            var facts = video.Facts with
+            {
+                InShortsList = lists.Shorts.Of(video.Item.ContentId),
+                InVideosList = lists.Videos.Of(video.Item.ContentId),
+                InStreamsList = lists.Streams.Of(video.Item.ContentId),
+            };
+            var type = known is not null && lists.AnyUnknown ? (ContentType?)null : YouTubeClassifier.Classify(facts);
+            return video.Item with { Type = type };
         }
 
         private async Task TryAsync(AlertSource source, string step, Func<Task> call, CancellationToken cancellationToken)
@@ -193,5 +245,47 @@ namespace Mognet.Modules.Alerts.YouTube
             HttpRequestException => "request failed",
             _ => ex.GetType().Name,
         };
+
+        private sealed record Memberships(IReadOnlySet<string>? Shorts, IReadOnlySet<string>? Videos, IReadOnlySet<string>? Streams)
+        {
+            public bool AnyUnknown => Shorts is null || Videos is null || Streams is null;
+        }
+
+        /// <summary>Reads the three lists once, on first use, and hands the same answer to every later item of the cycle.</summary>
+        private sealed class MembershipReader(YouTubeApi api, ILogger logger, AlertSource source, string uploads, CancellationToken cancellationToken)
+        {
+            private Task<Memberships>? _read;
+
+            public Task<Memberships> GetAsync() => _read ??= ReadAsync();
+
+            private async Task<Memberships> ReadAsync()
+            {
+                var suffix = uploads[2..];
+                return new Memberships(
+                    await ReadListAsync("UUSH" + suffix),
+                    await ReadListAsync("UULF" + suffix),
+                    await ReadListAsync("UULV" + suffix));
+            }
+
+            // The channel having no such content answers 404 playlistNotFound: then membership is known and empty.
+            // Any other failure leaves the list unknown.
+            private async Task<IReadOnlySet<string>?> ReadListAsync(string playlistId)
+            {
+                try
+                {
+                    var page = await api.ListPlaylistPageAsync(playlistId, pageToken: null, cancellationToken);
+                    return page.VideoIds.ToHashSet(StringComparer.Ordinal);
+                }
+                catch (YouTubeApiException ex) when (ex.StatusCode == HttpStatusCode.NotFound && ex.Reason == "playlistNotFound")
+                {
+                    return new HashSet<string>(StringComparer.Ordinal);
+                }
+                catch (Exception ex) when (IsApiFailure(ex, cancellationToken))
+                {
+                    logger.LogWarning("YouTube membership call for source {SourceId} failed ({Failure}); the list counts as unknown.", source.Id, Describe(ex));
+                    return null;
+                }
+            }
+        }
     }
 }

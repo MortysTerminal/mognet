@@ -8,8 +8,8 @@ namespace Mognet.Modules.Alerts.Tests
     {
         private static readonly DateTimeOffset T0 = new(2026, 3, 1, 12, 0, 0, TimeSpan.Zero);
 
-        private static KnownContent Known(string id, DateTimeOffset? start = null, LiveState? state = null) =>
-            new(1, id, start, T0, T0, state);
+        private static KnownContent Known(string id, DateTimeOffset? start = null, LiveState? state = null, ContentType? type = null) =>
+            new(1, id, start, T0, T0, state, type);
 
         [Fact]
         public void An_unknown_id_is_new()
@@ -72,6 +72,56 @@ namespace Mognet.Modules.Alerts.Tests
         {
             Assert.Single(ChangeDetector.Detect([new ContentItem("a", T0)], [Known("a", null)]));
             Assert.Single(ChangeDetector.Detect([new ContentItem("a", null)], [Known("a", T0)]));
+        }
+
+        [Fact]
+        public void A_new_item_reports_its_type()
+        {
+            var changes = ChangeDetector.Detect([new ContentItem("a", null, null, ContentType.Short)], []);
+
+            Assert.Equal([new ContentChange("a", ChangeKind.New, ContentType.Short)], changes);
+        }
+
+        [Fact]
+        public void A_new_type_is_reported_with_that_type()
+        {
+            var changes = ChangeDetector.Detect([new ContentItem("a", null, null, ContentType.Video)], [Known("a", type: ContentType.Unclassified)]);
+
+            Assert.Equal([new ContentChange("a", ChangeKind.TypeChanged, ContentType.Video)], changes);
+        }
+
+        [Fact]
+        public void The_same_type_reports_nothing()
+        {
+            Assert.Empty(ChangeDetector.Detect([new ContentItem("a", null, null, ContentType.Video)], [Known("a", type: ContentType.Video)]));
+        }
+
+        [Fact]
+        public void An_item_with_no_type_this_time_is_not_a_type_change()
+        {
+            Assert.Empty(ChangeDetector.Detect([new ContentItem("a", null)], [Known("a", type: ContentType.Video)]));
+        }
+
+        [Fact]
+        public void A_stream_going_from_scheduled_to_live_reports_the_state_and_the_type()
+        {
+            var start = T0.AddDays(1);
+
+            var changes = ChangeDetector.Detect(
+                [new ContentItem("a", start, LiveState.Live, ContentType.StreamLive)],
+                [Known("a", start, LiveState.Upcoming, ContentType.StreamScheduled)]);
+
+            Assert.Equal(
+                [new ContentChange("a", ChangeKind.LiveStateChanged), new ContentChange("a", ChangeKind.TypeChanged, ContentType.StreamLive)],
+                changes);
+        }
+
+        [Fact]
+        public void A_type_for_an_item_stored_without_one_is_a_change()
+        {
+            var changes = ChangeDetector.Detect([new ContentItem("a", null, null, ContentType.Video)], [Known("a")]);
+
+            Assert.Equal([new ContentChange("a", ChangeKind.TypeChanged, ContentType.Video)], changes);
         }
     }
 }

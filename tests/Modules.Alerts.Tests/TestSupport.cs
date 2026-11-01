@@ -73,6 +73,8 @@ namespace Mognet.Modules.Alerts.Tests
 
         public static Reply QuotaExceeded() => new(HttpStatusCode.Forbidden, Fixture.Load("error-quota-exceeded.json"));
 
+        public static Reply PlaylistNotFound() => new(HttpStatusCode.NotFound, Fixture.Load("error-playlist-not-found.json"));
+
         public static Reply Malformed() => Ok("{ this is not json");
     }
 
@@ -119,6 +121,12 @@ namespace Mognet.Modules.Alerts.Tests
         public void AddOrdinary(string id) => Videos[id] = Fixture.Item("video-ordinary.json", id);
 
         public void AddUpcoming(string id, string start) => Videos[id] = Fixture.Item("video-upcoming.json", id, start);
+
+        public void AddShort(string id) => Videos[id] = Fixture.Item("video-short.json", id);
+
+        public void AddPremiere(string id, string start) => Videos[id] = Fixture.Item("video-premiere.json", id, start);
+
+        public void AddEndedPremiere(string id, string start) => Videos[id] = Fixture.Item("video-premiere-ended.json", id, start);
 
         public void AddLive(string id, string start) => Videos[id] = Fixture.Item("video-live.json", id, start);
 

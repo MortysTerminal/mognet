@@ -12,7 +12,7 @@ namespace Mognet.Modules.Alerts.Storage
     public sealed class AlertSourceStore
     {
         private const string SourceColumns = "id, platform, external_id, baseline_recorded_at IS NOT NULL, created_at";
-        private const string ContentColumns = "source_id, content_id, scheduled_start, first_seen_at, last_refreshed_at, live_state";
+        private const string ContentColumns = "source_id, content_id, scheduled_start, first_seen_at, last_refreshed_at, live_state, content_type";
 
         private readonly SqliteStore _store;
 
@@ -87,25 +87,28 @@ namespace Mognet.Modules.Alerts.Storage
         /// <summary>
         /// Stores an item or updates the start, the live state and the refresh time of a known one. The first-seen time
         /// never changes. A <see langword="null"/> start or state replaces a stored one, so call this only with data
-        /// from the platform's detail call. The source must exist.
+        /// from the platform's detail call. A <see langword="null"/> type means "not determined" and keeps the stored
+        /// one. The source must exist.
         /// </summary>
-        public async Task UpsertKnownContentAsync(long sourceId, string contentId, DateTimeOffset? scheduledStart, DateTimeOffset now, LiveState? liveState = null, CancellationToken cancellationToken = default)
+        public async Task UpsertKnownContentAsync(long sourceId, string contentId, DateTimeOffset? scheduledStart, DateTimeOffset now, LiveState? liveState = null, ContentType? contentType = null, CancellationToken cancellationToken = default)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(contentId);
 
             await using var connection = await _store.OpenConnectionAsync(cancellationToken);
             await using var command = Command(connection, """
-                INSERT INTO known_content (source_id, content_id, scheduled_start, first_seen_at, last_refreshed_at, live_state)
-                VALUES ($source_id, $content_id, $start, $at, $at, $live_state)
+                INSERT INTO known_content (source_id, content_id, scheduled_start, first_seen_at, last_refreshed_at, live_state, content_type)
+                VALUES ($source_id, $content_id, $start, $at, $at, $live_state, $content_type)
                 ON CONFLICT (source_id, content_id) DO UPDATE SET
                     scheduled_start = excluded.scheduled_start,
                     last_refreshed_at = excluded.last_refreshed_at,
-                    live_state = excluded.live_state
+                    live_state = excluded.live_state,
+                    content_type = COALESCE(excluded.content_type, known_content.content_type)
                 """);
             Add(command, "$source_id", sourceId);
             Add(command, "$content_id", contentId);
             Add(command, "$start", scheduledStart is { } start ? Format(start) : null);
             Add(command, "$live_state", liveState is { } state ? FormatState(state) : null);
+            Add(command, "$content_type", contentType is { } type ? FormatType(type) : null);
             Add(command, "$at", Format(now));
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
@@ -173,7 +176,7 @@ namespace Mognet.Modules.Alerts.Storage
 
         private static KnownContent ReadContent(DbDataReader reader) =>
             new(reader.GetInt64(0), reader.GetString(1), reader.IsDBNull(2) ? null : Parse(reader.GetString(2)), Parse(reader.GetString(3)), Parse(reader.GetString(4)),
-                reader.IsDBNull(5) ? null : ParseState(reader.GetString(5)));
+                reader.IsDBNull(5) ? null : ParseState(reader.GetString(5)), reader.IsDBNull(6) ? null : ParseType(reader.GetString(6)));
 
         private static string FormatState(LiveState state) => state switch
         {
@@ -189,6 +192,28 @@ namespace Mognet.Modules.Alerts.Storage
             "live" => LiveState.Live,
             "ended" => LiveState.Ended,
             _ => throw new InvalidOperationException($"Unknown live state '{text}' in the database."),
+        };
+
+        private static string FormatType(ContentType type) => type switch
+        {
+            ContentType.Video => "video",
+            ContentType.Short => "short",
+            ContentType.StreamScheduled => "stream_scheduled",
+            ContentType.StreamLive => "stream_live",
+            ContentType.StreamEnded => "stream_ended",
+            ContentType.Unclassified => "unclassified",
+            _ => throw new ArgumentOutOfRangeException(nameof(type)),
+        };
+
+        private static ContentType ParseType(string text) => text switch
+        {
+            "video" => ContentType.Video,
+            "short" => ContentType.Short,
+            "stream_scheduled" => ContentType.StreamScheduled,
+            "stream_live" => ContentType.StreamLive,
+            "stream_ended" => ContentType.StreamEnded,
+            "unclassified" => ContentType.Unclassified,
+            _ => throw new InvalidOperationException($"Unknown content type '{text}' in the database."),
         };
 
         // Fixed-width UTC text: string order equals time order.

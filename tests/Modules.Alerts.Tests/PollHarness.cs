@@ -15,6 +15,9 @@ namespace Mognet.Modules.Alerts.Tests
         public const string ApiKey = "test-key-not-a-real-secret-9f3a1c";
         public const string ChannelId = "UCtestchannel0000000001";
         public const string Uploads = "UUtestchannel0000000001";
+        public const string ShortsList = "UUSHtestchannel0000000001";
+        public const string VideosList = "UULFtestchannel0000000001";
+        public const string StreamsList = "UULVtestchannel0000000001";
         public const string OtherChannelId = "UCtestchannel0000000002";
         public const string OtherUploads = "UUtestchannel0000000002";
 

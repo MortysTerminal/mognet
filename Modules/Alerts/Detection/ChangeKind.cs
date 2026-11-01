@@ -5,5 +5,6 @@ namespace Mognet.Modules.Alerts.Detection
         New,
         ScheduledStartChanged,
         LiveStateChanged,
+        TypeChanged,
     }
 }

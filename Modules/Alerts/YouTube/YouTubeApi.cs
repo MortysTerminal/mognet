@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Mognet.Modules.Alerts.Providers;
 
 namespace Mognet.Modules.Alerts.YouTube
 {
@@ -57,7 +56,7 @@ namespace Mognet.Modules.Alerts.YouTube
         }
 
         /// <summary>The videos YouTube returns for up to 50 ids. An id it does not return is missing from the list.</summary>
-        public async Task<IReadOnlyList<ContentItem>> GetVideosAsync(IReadOnlyList<string> ids, CancellationToken cancellationToken)
+        public async Task<IReadOnlyList<YouTubeVideo>> GetVideosAsync(IReadOnlyList<string> ids, CancellationToken cancellationToken)
         {
             if (ids.Count is 0 or > MaxIdsPerCall)
                 throw new ArgumentException($"Ask for 1 to {MaxIdsPerCall} ids per call.", nameof(ids));
