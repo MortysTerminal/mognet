@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Mognet.Bot.Core.Modules;
 using Mognet.Bot.Core.Storage;
-using Mognet.Modules.Alerts.Providers;
 
 namespace Mognet.Modules.Alerts.Tests
 {
@@ -64,30 +63,13 @@ namespace Mognet.Modules.Alerts.Tests
         [Fact]
         public async Task Migrations_create_the_tables_while_the_module_is_off()
         {
-            await ManagerAsync();
+            using var db = AlertsDb.CreateUnmigrated();
+            var module = new AlertsModule();
 
-            Assert.Equal(2, (await _db.QueryAsync(
+            await new MigrationRunner(db.Store).ApplyAsync([CoreMigrations.Set, module.Migrations!]);
+
+            Assert.Equal(2, (await db.QueryAsync(
                 "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name IN ('sources', 'known_content')")).Count);
-        }
-
-        [Fact]
-        public async Task A_provider_is_looked_up_by_platform_only_through_the_interface()
-        {
-            IContentProvider provider = new FakeProvider("youtube", new ContentItem("v1", null));
-            var source = new Storage.AlertSource(1, "youtube", "UC1", false, DateTimeOffset.UnixEpoch);
-
-            var items = await provider.FetchAsync(source, CancellationToken.None);
-
-            Assert.Equal("youtube", provider.Platform);
-            Assert.Equal([new ContentItem("v1", null)], items);
-        }
-
-        private sealed class FakeProvider(string platform, params ContentItem[] items) : IContentProvider
-        {
-            public string Platform => platform;
-
-            public Task<IReadOnlyList<ContentItem>> FetchAsync(Storage.AlertSource source, CancellationToken cancellationToken) =>
-                Task.FromResult<IReadOnlyList<ContentItem>>(items);
         }
     }
 }

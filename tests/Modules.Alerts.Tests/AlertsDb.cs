@@ -15,6 +15,9 @@ namespace Mognet.Modules.Alerts.Tests
 
         private AlertsDb() => Store = new SqliteStore(Path.Combine(_directory, "bot.db"));
 
+        /// <summary>An empty database file; the caller applies the migrations.</summary>
+        public static AlertsDb CreateUnmigrated() => new();
+
         public static async Task<AlertsDb> CreateAsync()
         {
             var db = new AlertsDb();
